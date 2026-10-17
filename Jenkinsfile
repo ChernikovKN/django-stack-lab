@@ -33,7 +33,7 @@ pipeline {
                         'app/manage.py',
                         'app/Dockerfile',
                         'app/requirements.txt',
-                        'automation/deploy.yml'
+                        'automation/deploy.yml',
                         'app/missing.py'
                     ]
 
