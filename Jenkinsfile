@@ -15,6 +15,25 @@ pipeline {
             }
         }
 
+stage('Docker Diagnostics') {
+    steps {
+        sh '''
+            echo "=== Current user ==="
+            whoami
+            id
+
+            echo "=== Docker socket ==="
+            ls -l /var/run/docker.sock
+
+            echo "=== Docker executable ==="
+            command -v docker
+
+            echo "=== Docker daemon ==="
+            docker info
+        '''
+    }
+}
+
         stage('Check Agent') {
             steps {
                 sh '''
