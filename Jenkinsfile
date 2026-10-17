@@ -5,71 +5,73 @@ pipeline {
     options {
         timestamps()
         disableConcurrentBuilds()
-    }
-
-    parameters {
-        booleanParam(
-            name: 'BREAK_BUILD',
-            defaultValue: false,
-            description: 'Имитировать ошибку сборки'
-        )
-    }
-
-    environment {
-        LAB_NAME = 'django-stack-lab'
+        skipDefaultCheckout(true)
     }
 
     stages {
-        stage('Inspect Agent') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    echo "Workspace: $PWD"
-                    echo "Hostname: $(hostname)"
-                    echo "Project: $LAB_NAME"
-                '''
+                checkout scm
             }
         }
 
-        stage('Groovy Example') {
+        stage('Inspect Build') {
+            steps {
+                echo "Job: ${env.JOB_NAME}"
+                echo "Build: ${env.BUILD_NUMBER}"
+                echo "Commit: ${env.GIT_COMMIT ?: 'unknown'}"
+
+                sh 'pwd'
+            }
+        }
+
+        stage('Validate Project') {
             steps {
                 script {
-                    def services = ['nginx', 'app', 'db']
+                    def requiredFiles = [
+                        'compose.yaml',
+                        'app/manage.py',
+                        'app/Dockerfile',
+                        'app/requirements.txt',
+                        'automation/deploy.yml'
+                    ]
 
-                    services.each { service ->
-                        echo "Service: ${service}"
+                    requiredFiles.each { file ->
+                        if (!fileExists(file)) {
+                            error("Missing file: ${file}")
+                        }
+
+                        echo "Found: ${file}"
                     }
                 }
             }
         }
 
-        stage('Smoke Test') {
+        stage('Check Dockerfile') {
             steps {
-                sh 'echo "Smoke test passed"'
-            }
-        }
+                sh '''
+                    set -eu
 
-        stage('Controlled Failure') {
-            when {
-                expression { params.BREAK_BUILD }
-            }
+                    grep -Eq '^FROM[[:space:]]+' app/Dockerfile
+                    grep -Eq '^USER[[:space:]]+' app/Dockerfile
 
-            steps {
-                sh 'exit 1'
+                    echo "Dockerfile basic checks passed"
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline SUCCESS'
+            echo 'CI checks passed'
         }
 
         failure {
-            echo 'Pipeline FAILED'
+            echo 'CI checks failed'
         }
 
         always {
-            echo 'Pipeline finished'
+            echo 'Pipeline completed'
         }
     }
 }
