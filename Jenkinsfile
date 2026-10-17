@@ -15,47 +15,45 @@ pipeline {
             }
         }
 
-        stage('Inspect Build') {
-            steps {
-                echo "Job: ${env.JOB_NAME}"
-                echo "Build: ${env.BUILD_NUMBER}"
-                echo "Commit: ${env.GIT_COMMIT ?: 'unknown'}"
-
-                sh 'pwd'
-            }
-        }
-
-        stage('Validate Project') {
-            steps {
-                script {
-                    def requiredFiles = [
-                        'compose.yaml',
-                        'app/manage.py',
-                        'app/Dockerfile',
-                        'app/requirements.txt',
-                        'automation/deploy.yml'
-                    ]
-
-                    requiredFiles.each { file ->
-                        if (!fileExists(file)) {
-                            error("Missing file: ${file}")
-                        }
-
-                        echo "Found: ${file}"
-                    }
-                }
-            }
-        }
-
-        stage('Check Dockerfile') {
+        stage('Check Agent') {
             steps {
                 sh '''
                     set -eu
 
-                    grep -Eq '^FROM[[:space:]]+' app/Dockerfile
-                    grep -Eq '^USER[[:space:]]+' app/Dockerfile
+                    whoami
+                    hostname
+                    docker version
+                    docker compose version
+                    ansible --version
+                '''
+            }
+        }
 
-                    echo "Dockerfile basic checks passed"
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    set -eu
+
+                    docker build \
+                      -t "django-stack-ci:${BUILD_NUMBER}" \
+                      ./app
+                '''
+            }
+        }
+
+        stage('Django Check') {
+            steps {
+                sh '''
+                    set -eu
+
+                    docker run --rm \
+                      -e DJANGO_SECRET_KEY=ci-test-only \
+                      -e DB_NAME=ci_db \
+                      -e DB_USER=ci_user \
+                      -e DB_PASSWORD=ci-placeholder \
+                      -e DB_HOST=db \
+                      "django-stack-ci:${BUILD_NUMBER}" \
+                      python manage.py check
                 '''
             }
         }
@@ -63,15 +61,15 @@ pipeline {
 
     post {
         success {
-            echo 'CI checks passed'
+            echo 'Docker build and Django checks passed'
         }
 
         failure {
-            echo 'CI checks failed'
+            echo 'CI Pipeline failed'
         }
 
         always {
-            echo 'Pipeline completed'
+            echo 'Pipeline finished'
         }
     }
 }
