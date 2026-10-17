@@ -1,0 +1,11 @@
+
+---
+- name: Configure Nginx using role
+  hosts: lab
+  gather_facts: false
+
+  vars:
+    project_dir: "{{ playbook_dir | dirname }}"
+
+  roles:
+    - nginx_config

@@ -1,0 +1,14 @@
+
+---
+- name: Reload Nginx
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - exec
+      - -T
+      - nginx
+      - nginx
+      - -s
+      - reload
+    chdir: "{{ project_dir }}"

@@ -1,0 +1,35 @@
+
+---
+- name: Render Nginx configuration
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: "{{ project_dir }}/nginx/default.conf"
+    mode: "0644"
+  notify: Reload Nginx
+
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - exec
+      - -T
+      - nginx
+      - nginx
+      - -t
+    chdir: "{{ project_dir }}"
+  changed_when: false
+
+- name: Apply pending reload
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify Django health
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8899/health/
+    status_code: 200
+    return_content: true
+  register: health_result
+
+- name: Show application health
+  ansible.builtin.debug:
+    var: health_result.json
