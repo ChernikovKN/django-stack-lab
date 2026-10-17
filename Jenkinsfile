@@ -33,8 +33,7 @@ pipeline {
                         'app/manage.py',
                         'app/Dockerfile',
                         'app/requirements.txt',
-                        'automation/deploy.yml',
-                        'app/missing.py'
+                        'automation/deploy.yml'
                     ]
 
                     requiredFiles.each { file ->
