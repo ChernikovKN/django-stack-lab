@@ -15,47 +15,25 @@ pipeline {
             }
         }
 
-stage('Docker Diagnostics') {
-    steps {
-        sh '''
-            echo "=== Current user ==="
-            whoami
-            id
-
-            echo "=== Docker socket ==="
-            ls -l /var/run/docker.sock
-
-            echo "=== Docker executable ==="
-            command -v docker
-
-            echo "=== Docker daemon ==="
-            docker info
-        '''
-    }
-}
-
         stage('Check Agent') {
             steps {
                 sh '''
                     set -eu
-
                     whoami
-                    hostname
-                    docker version
-                    docker compose version
-                    ansible --version
+                    id
+                    docker info --format '{{.ServerVersion}}'
                 '''
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Image') {
             steps {
                 sh '''
                     set -eu
 
                     docker build \
-                      -t "django-stack-ci:${BUILD_NUMBER}" \
-                      ./app
+                        -t "django-stack-ci:${BUILD_NUMBER}" \
+                        ./app
                 '''
             }
         }
@@ -66,29 +44,53 @@ stage('Docker Diagnostics') {
                     set -eu
 
                     docker run --rm \
-                      -e DJANGO_SECRET_KEY=ci-test-only \
-                      -e DB_NAME=ci_db \
-                      -e DB_USER=ci_user \
-                      -e DB_PASSWORD=ci-placeholder \
-                      -e DB_HOST=db \
-                      "django-stack-ci:${BUILD_NUMBER}" \
-                      python manage.py check
+                        -e DJANGO_SECRET_KEY=ci-test-only \
+                        -e DB_NAME=labdb \
+                        -e DB_USER=labuser \
+                        -e DB_PASSWORD=ci-placeholder \
+                        -e DB_HOST=db \
+                        "django-stack-ci:${BUILD_NUMBER}" \
+                        python manage.py check
+                '''
+            }
+        }
+
+        stage('Integration Test') {
+            steps {
+                sh '''
+                    sh ci/integration.sh \
+                        "django-stack-ci:${BUILD_NUMBER}"
                 '''
             }
         }
     }
 
     post {
+        always {
+            sh(
+                returnStatus: true,
+                script: '''
+                    CI_ID=$(printf '%s' \
+                        "${JOB_NAME}-${BUILD_NUMBER}" \
+                        | sha256sum | cut -c1-12)
+
+                    docker rm -fv "djci-db-${CI_ID}" \
+                        >/dev/null 2>&1 || true
+
+                    docker network rm "djci-net-${CI_ID}" \
+                        >/dev/null 2>&1 || true
+                '''
+            )
+
+            echo 'CI cleanup finished'
+        }
+
         success {
-            echo 'Docker build and Django checks passed'
+            echo 'CI SUCCESS'
         }
 
         failure {
-            echo 'CI Pipeline failed'
-        }
-
-        always {
-            echo 'Pipeline finished'
+            echo 'CI FAILED'
         }
     }
 }
