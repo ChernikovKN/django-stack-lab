@@ -1,0 +1,73 @@
+
+---
+- name: Deploy Django staging
+  hosts: lab
+  gather_facts: false
+
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    project_dir: "{{ playbook_dir | dirname }}"
+
+    stage_env:
+      CI_IMAGE: "{{ lookup('env', 'CI_IMAGE') }}"
+      DB_PASSWORD: "{{ lookup('env', 'DB_PASSWORD') }}"
+      DJANGO_SECRET_KEY: "{{ lookup('env', 'DJANGO_SECRET_KEY') }}"
+
+  tasks:
+    - name: Verify required configuration
+      ansible.builtin.assert:
+        that:
+          - stage_env.CI_IMAGE | length > 0
+          - stage_env.DB_PASSWORD | length > 0
+          - stage_env.DJANGO_SECRET_KEY | length > 0
+        fail_msg: "Required staging configuration is missing"
+      no_log: true
+
+    - name: Deploy staging services
+      community.docker.docker_compose_v2:
+        project_src: "{{ project_dir }}/ci"
+        files:
+          - compose.staging.yaml
+        project_name: django-ci-staging
+        state: present
+        build: never
+        pull: missing
+        wait: true
+        wait_timeout: 120
+      environment: "{{ stage_env }}"
+      no_log: true
+
+    - name: Apply Django migrations
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -p
+          - django-ci-staging
+          - -f
+          - compose.staging.yaml
+          - run
+          - --rm
+          - app
+          - python
+          - manage.py
+          - migrate
+          - --noinput
+        chdir: "{{ project_dir }}/ci"
+      environment: "{{ stage_env }}"
+      register: migration_result
+      changed_when: "'Applying ' in migration_result.stdout"
+
+    - name: Verify staging health
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8900/health/
+        status_code: 200
+        return_content: true
+      register: health_result
+      retries: 6
+      delay: 2
+      until: health_result.status == 200
+
+    - name: Print staging health
+      ansible.builtin.debug:
+        var: health_result.json

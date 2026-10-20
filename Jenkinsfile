@@ -63,6 +63,38 @@ pipeline {
                 '''
             }
         }
+        
+        stage('Deploy Staging') {
+          input {
+            message 'Развернуть CI-образ в staging?'
+            ok 'Deploy'
+          }
+
+          steps {
+            withCredentials([
+              string(
+                  credentialsId: 'staging-db-password',
+                  variable: 'DB_PASSWORD'
+              ),
+              string(
+                  credentialsId: 'staging-django-secret',
+                  variable: 'DJANGO_SECRET_KEY'
+              )
+          ]) {
+              sh '''
+                  set +x
+                  set -eu
+
+                  export CI_IMAGE="django-stack-ci:${BUILD_NUMBER}"
+
+                  ansible-playbook \
+                      -i automation/inventory.ini \
+                      automation/deploy-staging.yml
+              '''
+          }
+      }
+  }
+
     }
 
     post {
