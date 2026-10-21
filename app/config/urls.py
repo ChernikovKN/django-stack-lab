@@ -6,7 +6,7 @@ from django.db import connection
 
 def index(request):
     return HttpResponse(
-        "Django via Nginx + Gunicorn!\n"
+        "Django staging v2!\n"
     )
 
 
