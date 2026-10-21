@@ -7,7 +7,7 @@
   vars:
     ansible_python_interpreter: "{{ ansible_playbook_python }}"
     project_dir: "{{ playbook_dir | dirname }}"
-
+    stage_dir: "/srv/django-ci-staging"
     stage_env:
       CI_IMAGE: "{{ lookup('env', 'CI_IMAGE') }}"
       DB_PASSWORD: "{{ lookup('env', 'DB_PASSWORD') }}"
@@ -23,9 +23,21 @@
         fail_msg: "Required staging configuration is missing"
       no_log: true
 
+    - name: Copy staging Compose configuration
+      ansible.builtin.copy:
+        src: "{{ project_dir }}/ci/compose.staging.yaml"
+        dest: "{{ stage_dir }}/compose.staging.yaml"
+        mode: "0644"
+
+    - name: Copy staging Nginx configuration
+      ansible.builtin.copy:
+        src: "{{ project_dir }}/ci/nginx.staging.conf"
+        dest: "{{ stage_dir }}/nginx.staging.conf"
+        mode: "0644"
+
     - name: Deploy staging services
       community.docker.docker_compose_v2:
-        project_src: "{{ project_dir }}/ci"
+        project_src: "{{ stage_dir }}"
         files:
           - compose.staging.yaml
         project_name: django-ci-staging
@@ -53,7 +65,7 @@
           - manage.py
           - migrate
           - --noinput
-        chdir: "{{ project_dir }}/ci"
+        chdir: "{{ stage_dir }}"
       environment: "{{ stage_env }}"
       register: migration_result
       changed_when: "'Applying ' in migration_result.stdout"

@@ -10,9 +10,23 @@
     project_dir: "{{ playbook_dir | dirname }}"
 
   tasks:
+
+    - name: Copy staging Compose configuration
+      ansible.builtin.copy:
+        src: "{{ project_dir }}/ci/compose.staging.yaml"
+        dest: "{{ stage_dir }}/compose.staging.yaml"
+        mode: "0644"
+
+    - name: Copy staging Nginx configuration
+      ansible.builtin.copy:
+        src: "{{ project_dir }}/ci/nginx.staging.conf"
+        dest: "{{ stage_dir }}/nginx.staging.conf"
+        mode: "0644"
+
+
     - name: Ensure Docker Compose services are running
       community.docker.docker_compose_v2:
-        project_src: "{{ project_dir }}"
+        project_src: "{{ stage_dir }}"
         state: present
         wait: true
         wait_timeout: 90
