@@ -37,7 +37,7 @@ pipeline {
 
                 sh '''
                     set -eu
-                    docker image inspect "$ROLLBACK_IMAGE" \
+                    docker pull "$ROLLBACK_IMAGE" \
                         >/dev/null
 
                     echo "Rollback image found"

@@ -15,6 +15,23 @@ pipeline {
             }
         }
 
+        
+        stage('Resolve Version') {
+            steps {
+                script {
+                    env.GIT_SHA = sh(
+                        script: 'git rev-parse --short=12 HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.CI_IMAGE =
+                        "127.0.0.1:5000/django-stack:${env.GIT_SHA}"
+
+                    echo "Building: ${env.CI_IMAGE}"
+                }
+            }
+        }
+
         stage('Check Agent') {
             steps {
                 sh '''
@@ -32,7 +49,7 @@ pipeline {
                     set -eu
 
                     docker build \
-                        -t "django-stack-ci:${BUILD_NUMBER}" \
+                        -t "$CI_IMAGE" \
                         ./app
                 '''
             }
@@ -49,7 +66,7 @@ pipeline {
                         -e DB_USER=labuser \
                         -e DB_PASSWORD=ci-placeholder \
                         -e DB_HOST=db \
-                        "django-stack-ci:${BUILD_NUMBER}" \
+                        "$CI_IMAGE" \
                         python manage.py check
                 '''
             }
@@ -58,12 +75,32 @@ pipeline {
         stage('Integration Test') {
             steps {
                 sh '''
-                    sh ci/integration.sh \
-                        "django-stack-ci:${BUILD_NUMBER}"
+                    sh ci/integration.sh "$CI_IMAGE"
                 '''
             }
         }
         
+
+
+        stage('Push Image') {
+            steps {
+                sh '''
+                   set -eu
+
+                   echo "Pushing $CI_IMAGE"
+
+                   docker push "$CI_IMAGE"
+
+                   echo "Published image digest:"
+
+                   docker image inspect "$CI_IMAGE" \
+                   --format '{{json .RepoDigests}}'
+                '''
+            }
+        }
+
+
+
         stage('Deploy Staging') {
           input {
             message 'Развернуть CI-образ в staging?'
@@ -85,7 +122,7 @@ pipeline {
                   set +x
                   set -eu
 
-                  export CI_IMAGE="django-stack-ci:${BUILD_NUMBER}"
+                  CI_IMAGE: "{{ lookup('env', 'CI_IMAGE') }}"
 
                   ansible-playbook \
                       -i automation/inventory.ini \
