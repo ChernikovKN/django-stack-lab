@@ -24,10 +24,9 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
-                    env.CI_IMAGE =
-                        "127.0.0.1:5000/django-stack:${env.GIT_SHA}"
+                    env.CI_IMAGE = "127.0.0.1:5000/django-stack:${env.GIT_SHA}"
 
-                    echo "Building: ${env.CI_IMAGE}"
+                    echo "Building image: ${env.CI_IMAGE}"
                 }
             }
         }
@@ -93,8 +92,7 @@ pipeline {
 
                    echo "Published image digest:"
 
-                   docker image inspect "$CI_IMAGE" \
-                   --format '{{json .RepoDigests}}'
+                   docker image inspect "$CI_IMAGE" --format '{{json .RepoDigests}}'
                 '''
             }
         }
@@ -122,11 +120,12 @@ pipeline {
                   set +x
                   set -eu
 
+                  echo CI_IMAGE
+
                   CI_IMAGE: "{{ lookup('env', 'CI_IMAGE') }}"
 
                   ansible-playbook \
-                      -i automation/inventory.ini \
-                      automation/deploy-staging.yml
+                      -i automation/inventory.ini automation/deploy-staging.yml
               '''
           }
       }
